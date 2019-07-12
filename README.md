@@ -9,7 +9,7 @@ It is also capable of recognizing faces and it tells user whether a known person
 1. Get the source code on your pc via git and navigate inside the folder through your terminal.
 
 ```
-  git clone https://github.com/altruistcoder/Zephyr
+  git clone https://github.com/foodiehack/DigiVision/
 ```
-2. Just run the [digivision.py](https://github.com/altruistcoder/Digivision/blob/master/digivision.py) file and you are good to go.
+2. Just run the [digivision.py](https://github.com/foodiehack/DigiVision/blob/master/digivision.py) file and you are good to go.
 # DigiVision
