@@ -33,6 +33,7 @@ def layer(op):
 
     return layer_decorated
 
+
 class Network(object):
 
     def __init__(self, inputs, trainable=True):
@@ -51,13 +52,16 @@ class Network(object):
         """Construct the network. """
         raise NotImplementedError('Must be implemented by the subclass.')
 
-    def load(self, data_path, session, ignore_missing=False):
+    @staticmethod
+    def load(data_path, session, ignore_missing=False):
         """Load network weights.
         data_path: The path to the numpy-serialized network weights
         session: The current TensorFlow session
-        ignore_missing: If true, serialized weights for missing layers are ignored.
+        ignore_missing: If true, serialized weights for missing layers are
+        ignored.
         """
-        data_dict = np.load(data_path, encoding='latin1').item() #pylint: disable=no-member
+        data_dict = np.load(data_path, encoding='latin1').item()
+        # pylint: disable=no-member
 
         for op_name in data_dict:
             with tf.variable_scope(op_name, reuse=True):
@@ -104,18 +108,8 @@ class Network(object):
         assert padding in ('SAME', 'VALID')
 
     @layer
-    def conv(self,
-             inp,
-             k_h,
-             k_w,
-             c_o,
-             s_h,
-             s_w,
-             name,
-             relu=True,
-             padding='SAME',
-             group=1,
-             biased=True):
+    def conv(self, inp, k_h, k_w, c_o, s_h, s_w, name, relu=True,
+             padding='SAME', group=1, biased=True):
         # Verify that the padding is acceptable
         self.validate_padding(padding)
         # Get the number of channels in the input
@@ -127,7 +121,8 @@ class Network(object):
         convolve = lambda i, k: tf.nn.conv2d(i, k, [1, s_h, s_w, 1], padding=padding)
         with tf.variable_scope(name) as scope:
             kernel = self.make_var('weights', shape=[k_h, k_w, c_i // group, c_o])
-            # This is the common-case. Convolve the input without any further complications.
+            # This is the common-case. Convolve the input without any further
+            # complications.
             output = convolve(inp, kernel)
             # Add the biases
             if biased:
@@ -190,7 +185,7 @@ class Network(object):
     
 class PNet(Network):
     def setup(self):
-        (self.feed('data') #pylint: disable=no-value-for-parameter, no-member
+        (self.feed('data')  # pylint: disable=no-value-for-parameter, no-member
              .conv(3, 3, 10, 1, 1, padding='VALID', relu=False, name='conv1')
              .prelu(name='PReLU1')
              .max_pool(2, 2, 2, 2, name='pool1')
@@ -201,12 +196,12 @@ class PNet(Network):
              .conv(1, 1, 2, 1, 1, relu=False, name='conv4-1')
              .softmax(3,name='prob1'))
 
-        (self.feed('PReLU3') #pylint: disable=no-value-for-parameter
+        (self.feed('PReLU3')  # pylint: disable=no-value-for-parameter
              .conv(1, 1, 4, 1, 1, relu=False, name='conv4-2'))
         
 class RNet(Network):
     def setup(self):
-        (self.feed('data') #pylint: disable=no-value-for-parameter, no-member
+        (self.feed('data') # pylint: disable=no-value-for-parameter, no-member
              .conv(3, 3, 28, 1, 1, padding='VALID', relu=False, name='conv1')
              .prelu(name='prelu1')
              .max_pool(3, 3, 2, 2, name='pool1')
@@ -220,12 +215,12 @@ class RNet(Network):
              .fc(2, relu=False, name='conv5-1')
              .softmax(1,name='prob1'))
 
-        (self.feed('prelu4') #pylint: disable=no-value-for-parameter
+        (self.feed('prelu4')  # pylint: disable=no-value-for-parameter
              .fc(4, relu=False, name='conv5-2'))
 
 class ONet(Network):
     def setup(self):
-        (self.feed('data') #pylint: disable=no-value-for-parameter, no-member
+        (self.feed('data')  # pylint: disable=no-value-for-parameter, no-member
              .conv(3, 3, 32, 1, 1, padding='VALID', relu=False, name='conv1')
              .prelu(name='prelu1')
              .max_pool(3, 3, 2, 2, name='pool1')
@@ -242,33 +237,38 @@ class ONet(Network):
              .fc(2, relu=False, name='conv6-1')
              .softmax(1, name='prob1'))
 
-        (self.feed('prelu5') #pylint: disable=no-value-for-parameter
+        (self.feed('prelu5')  # pylint: disable=no-value-for-parameter
              .fc(4, relu=False, name='conv6-2'))
 
-        (self.feed('prelu5') #pylint: disable=no-value-for-parameter
+        (self.feed('prelu5')  # pylint: disable=no-value-for-parameter
              .fc(10, relu=False, name='conv6-3'))
 
 def create_mtcnn(sess, model_path):
     if not model_path:
-        model_path,_ = os.path.split(os.path.realpath(__file__))
+        model_path, _ = os.path.split(os.path.realpath(__file__))
 
     with tf.variable_scope('pnet'):
-        data = tf.placeholder(tf.float32, (None,None,None,3), 'input')
-        pnet = PNet({'data':data})
+        data = tf.placeholder(tf.float32, (None, None, None, 3), 'input')
+        pnet = PNet({'data': data})
         pnet.load(os.path.join(model_path, 'det1.npy'), sess)
     with tf.variable_scope('rnet'):
-        data = tf.placeholder(tf.float32, (None,24,24,3), 'input')
+        data = tf.placeholder(tf.float32, (None, 24, 24, 3), 'input')
         rnet = RNet({'data':data})
         rnet.load(os.path.join(model_path, 'det2.npy'), sess)
     with tf.variable_scope('onet'):
-        data = tf.placeholder(tf.float32, (None,48,48,3), 'input')
+        data = tf.placeholder(tf.float32, (None, 48, 48, 3), 'input')
         onet = ONet({'data':data})
         onet.load(os.path.join(model_path, 'det3.npy'), sess)
         
-    pnet_fun = lambda img : sess.run(('pnet/conv4-2/BiasAdd:0', 'pnet/prob1:0'), feed_dict={'pnet/input:0':img})
-    rnet_fun = lambda img : sess.run(('rnet/conv5-2/conv5-2:0', 'rnet/prob1:0'), feed_dict={'rnet/input:0':img})
-    onet_fun = lambda img : sess.run(('onet/conv6-2/conv6-2:0', 'onet/conv6-3/conv6-3:0', 'onet/prob1:0'), feed_dict={'onet/input:0':img})
+    pnet_fun = lambda img: sess.run(('pnet/conv4-2/BiasAdd:0', 'pnet/prob1:0'),
+                                     feed_dict={'pnet/input:0':img})
+    rnet_fun = lambda img: sess.run(('rnet/conv5-2/conv5-2:0', 'rnet/prob1:0'),
+                                     feed_dict={'rnet/input:0':img})
+    onet_fun = lambda img: sess.run(('onet/conv6-2/conv6-2:0',
+                                      'onet/conv6-3/conv6-3:0', 'onet/prob1:0'),
+                                     feed_dict={'onet/input:0':img})
     return pnet_fun, rnet_fun, onet_fun
+
 
 def detect_face(img, minsize, pnet, rnet, onet, threshold, factor):
     """Detects faces in an image, and returns bounding boxes and points for them.
@@ -276,19 +276,20 @@ def detect_face(img, minsize, pnet, rnet, onet, threshold, factor):
     minsize: minimum faces' size
     pnet, rnet, onet: caffemodel
     threshold: threshold=[th1, th2, th3], th1-3 are three steps's threshold
-    factor: the factor used to create a scaling pyramid of face sizes to detect in the image.
+    factor: the factor used to create a scaling pyramid of face sizes to detect
+     in the image.
     """
-    factor_count=0
-    total_boxes=np.empty((0,9))
-    points=np.empty(0)
-    h=img.shape[0]
-    w=img.shape[1]
-    minl=np.amin([h, w])
-    m=12.0/minsize
-    minl=minl*m
+    factor_count = 0
+    total_boxes = np.empty((0,9))
+    points = np.empty(0)
+    h = img.shape[0]
+    w = img.shape[1]
+    minl = np.amin([h, w])
+    m = 12.0/minsize
+    minl = minl*m
     # create scale pyramid
-    scales=[]
-    while minl>=12:
+    scales = []
+    while minl >= 12:
         scales += [m*np.power(factor, factor_count)]
         minl = minl*factor
         factor_count += 1
@@ -305,7 +306,9 @@ def detect_face(img, minsize, pnet, rnet, onet, threshold, factor):
         out0 = np.transpose(out[0], (0,2,1,3))
         out1 = np.transpose(out[1], (0,2,1,3))
         
-        boxes, _ = generateBoundingBox(out1[0,:,:,1].copy(), out0[0,:,:,:].copy(), scale, threshold[0])
+        boxes, _ = generateBoundingBox(out1[0, :, :, 1].copy(),
+                                       out0[0, :, :, :].copy(), scale,
+                                       threshold[0])
         
         # inter-scale nms
         pick = nms(boxes.copy(), 0.5, 'Union')
@@ -741,16 +744,4 @@ def imresample(img, sz):
     im_data = cv2.resize(img, (sz[1], sz[0]), interpolation=cv2.INTER_AREA) #@UndefinedVariable
     return im_data
 
-    # This method is kept for debugging purpose
-#     h=img.shape[0]
-#     w=img.shape[1]
-#     hs, ws = sz
-#     dx = float(w) / ws
-#     dy = float(h) / hs
-#     im_data = np.zeros((hs,ws,3))
-#     for a1 in range(0,hs):
-#         for a2 in range(0,ws):
-#             for a3 in range(0,3):
-#                 im_data[a1,a2,a3] = img[int(floor(a1*dy)),int(floor(a2*dx)),a3]
-#     return im_data
 
